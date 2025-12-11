@@ -42,6 +42,7 @@ const path = require("path");
 const app = express();
 const server = createServer(app);
 // Middleware
+// 
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:4000",
