@@ -12,7 +12,7 @@ const connectAuditDB = async () => {
     // Use separate database for audit logs
     const auditDbUri = process.env.AUDIT_MONGO_URI || 
       process.env.MONGO_URI?.replace('/mapazz', '/mapazz_logs') || 
-      'mongodb+srv://anshusharma42019:Anshu42019@cluster0.bubhmal.mongodb.net/Mapazz-logs?appName=Cluster0';
+      'mongodb+srv://hh:havana@cluster0.renncp4.mongodb.net/MAPAAZ_hotel?retryWrites=true&w=majority';
       // 'mongodb+srv://hh:havana@cluster0.renncp4.mongodb.net/hotel_logs?retryWrites=true&w=majority';
 
     console.log('Connecting to audit database...');
