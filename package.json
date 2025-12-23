@@ -1,7 +1,7 @@
 {
-  "name": "havanabackend",
+  "name": "mapazzbackend",
   "version": "1.0.4",
-  "description": "Havana Hotel Backend API",
+  "description": "Mapazz Hotel Backend API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -45,7 +45,7 @@ const uploadBase64ToCloudinary = async (base64String) => {
     }
     
     const result = await cloudinary.uploader.upload(base64String, {
-      folder: 'havana-booking-media',
+      folder: 'mapazz-booking-media',
       transformation: [{ width: 800, height: 800, crop: 'limit' }]
     });
     return result.secure_url;

@@ -13,7 +13,7 @@ const connectAuditDB = async () => {
     const auditDbUri = process.env.AUDIT_MONGO_URI || 
       process.env.MONGO_URI?.replace('/mapazz', '/mapazz_logs') || 
       'mongodb+srv://hh:havana@cluster0.renncp4.mongodb.net/MAPAAZ_hotel?retryWrites=true&w=majority';
-      // 'mongodb+srv://hh:havana@cluster0.renncp4.mongodb.net/hotel_logs?retryWrites=true&w=majority';
+  
 
     console.log('Connecting to audit database...');
     
