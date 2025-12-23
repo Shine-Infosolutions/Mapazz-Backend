@@ -45,7 +45,7 @@ const app = express();
 // Middleware
 const allowedOrigins = [
   "http://localhost:5173",
-  "http://localhost:4000",
+  "http://localhost:5000",
   "https://mapazz-backend.vercel.app",
   "https://mapazz-frontend.vercel.app",
 ];
