@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const bookingSchema = new mongoose.Schema({
   bookingNo: { type: String, unique: true, index: true },
   grcNo: { type: String, unique: true, required: true },  // Guest Registration Card No
-  invoiceNumber: { type: String, unique: true },  // Invoice number like HH/12/0001
+  invoiceNumber: { type: String, unique: true },  // Invoice number like MPZ/12/001
   categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
 
   bookingDate: { type: Date, default: Date.now },
@@ -223,8 +223,8 @@ bookingSchema.pre('save', async function(next) {
     });
     
     const nextNumber = maxNumber + 1;
-    const sequence = String(nextNumber).padStart(4, '0');
-    this.invoiceNumber = `HH/${month}/${sequence}`;
+    const sequence = String(nextNumber).padStart(3, '0');
+    this.invoiceNumber = `MPZ/${month}/${sequence}`;
     
     console.log('✅ Generated invoice:', this.invoiceNumber);
   }

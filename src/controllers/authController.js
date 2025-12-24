@@ -33,6 +33,11 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   try {
+    // Check if database is connected
+    if (!req.dbConnected) {
+      return res.status(500).json({ error: 'Database connection failed' });
+    }
+
     const { email, password } = req.body;
 
     const user = await User.findOne({ 

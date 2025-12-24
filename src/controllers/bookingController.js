@@ -17,6 +17,10 @@ const createAuditLog = (action, recordId, userId, userRole, oldData, newData, re
   setImmediate(async () => {
     try {
       const AuditLog = await getAuditLogModel();
+      if (!AuditLog) {
+        console.log('⚠️ Audit logging disabled - audit database unavailable');
+        return;
+      }
       await AuditLog.create({
         action,
         module: 'BOOKING',
@@ -30,7 +34,7 @@ const createAuditLog = (action, recordId, userId, userRole, oldData, newData, re
       });
       console.log(`✅ Audit log created: ${action} for booking ${recordId}`);
     } catch (error) {
-      console.error('❌ Audit log creation failed:', error);
+      console.error('❌ Audit log creation failed:', error.message);
     }
   });
 };
@@ -337,6 +341,15 @@ exports.bookRoom = async (req, res) => {
 
       await booking.save();
 
+      // Fix room number based on roomRates (source of truth)
+      if (roomRates && roomRates.length > 0) {
+        const correctRoomNumbers = roomRates.map(rate => rate.roomNumber).filter(Boolean);
+        if (correctRoomNumbers.length > 0) {
+          booking.roomNumber = correctRoomNumbers.join(',');
+          await booking.save();
+        }
+      }
+
       // Create audit log for booking creation
       await createAuditLog('CREATE', booking._id, req.user?.id, req.user?.role, null, booking.toObject(), req);
 
@@ -390,7 +403,7 @@ exports.bookRoom = async (req, res) => {
   }
 };
 
-// 🔹 Get all bookings
+// 🔹 Get all bookings with optimized single API response
 exports.getBookings = async (req, res) => {
   try {
     const filter = req.query.all === 'true' ? { deleted: { $ne: true } } : { isActive: true, deleted: { $ne: true } };
@@ -400,26 +413,25 @@ exports.getBookings = async (req, res) => {
       .lean()
       .exec();
     
-    // Get all rooms to check extra bed status
-    const rooms = await Room.find({})
-      .maxTimeMS(5000)
-      .lean()
-      .exec();
+    // Get all rooms and categories in parallel for optimization
+    const [rooms, categories] = await Promise.all([
+      Room.find({}).maxTimeMS(5000).lean().exec(),
+      Category.find({}).maxTimeMS(5000).lean().exec()
+    ]);
 
-    // Map bookings to ensure safe access to category properties and add room-specific extra bed info
+    // Map bookings with all necessary data included
     const safeBookings = bookings.map(booking => {
-      // Handle both lean objects and Mongoose documents
       const bookingObj = booking.toObject ? booking.toObject() : booking;
+      
+      // Ensure category data is available
       if (!bookingObj.categoryId) {
         bookingObj.categoryId = { name: 'Unknown' };
       }
       
-      // Use extraBedRooms from database if available, otherwise calculate it
+      // Calculate extra bed rooms
       if (bookingObj.extraBedRooms && Array.isArray(bookingObj.extraBedRooms)) {
-        // Use the stored extraBedRooms array directly
         bookingObj.extraBedRooms = bookingObj.extraBedRooms;
       } else if (bookingObj.roomNumber) {
-        // Fallback: calculate from roomRates or room data
         const roomNumbers = bookingObj.roomNumber.split(',').map(r => r.trim());
         const extraBedRooms = [];
         
@@ -446,7 +458,12 @@ exports.getBookings = async (req, res) => {
       return bookingObj;
     });
 
-    res.json(safeBookings);
+    // Return optimized response with all data included
+    res.json({
+      bookings: safeBookings,
+      rooms: rooms,
+      categories: categories
+    });
   } catch (error) {
     if (error.name === 'MongooseError' && error.message.includes('buffering timed out')) {
       res.status(408).json({ error: 'Database query timeout. Please try again.' });
@@ -996,6 +1013,28 @@ exports.searchCustomers = async (req, res) => {
 };
 
 
+// Get booking by Booking Number
+exports.getBookingByNumber = async (req, res) => {
+  try {
+    const { bookingNo } = req.params;
+
+    const booking = await Booking.findOne({ bookingNo }).populate('categoryId');
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const result = booking.toObject ? booking.toObject() : booking;
+    if (!result.categoryId) {
+      result.categoryId = { name: 'Unknown' };
+    }
+
+    res.json({ success: true, booking: result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Get booking by Booking ID
 exports.getBookingById = async (req, res) => {
   try {
@@ -1018,23 +1057,48 @@ exports.getBookingById = async (req, res) => {
   }
 };
 
-// Get booking by Booking Number
-exports.getBookingByNumber = async (req, res) => {
+// Get comprehensive booking details with all charges in one API call
+exports.getBookingDetailsWithCharges = async (req, res) => {
   try {
-    const { bookingNo } = req.params;
-
-    const booking = await Booking.findOne({ bookingNo }).populate('categoryId');
-
+    const { bookingId } = req.params;
+    
+    // Get booking details
+    const booking = await Booking.findOne({ bookingNo: bookingId }).populate('categoryId');
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
-    const result = booking.toObject ? booking.toObject() : booking;
-    if (!result.categoryId) {
-      result.categoryId = { name: 'Unknown' };
-    }
+    // Get all charges in parallel
+    const [roomServiceOrders, restaurantOrders, laundryOrders] = await Promise.all([
+      require('../models/RoomService').find({
+        bookingId: booking._id,
+        status: { $nin: ['cancelled', 'canceled'] }
+      }),
+      require('../models/RestaurantOrder').find({
+        $or: [
+          { bookingId: booking._id },
+          { bookingNumber: booking.grcNo }
+        ],
+        status: { $nin: ['cancelled', 'canceled'] }
+      }),
+      require('../models/Laundry').find({
+        $or: [
+          { bookingId: booking._id },
+          { grcNo: booking.grcNo },
+          { roomNumber: { $in: booking.roomNumber ? booking.roomNumber.split(',').map(num => num.trim()) : [] } }
+        ],
+        laundryStatus: { $nin: ['cancelled', 'canceled'] }
+      })
+    ]);
 
-    res.json({ success: true, booking: result });
+    // Return comprehensive data
+    res.json({
+      success: true,
+      booking,
+      serviceCharges: roomServiceOrders,
+      restaurantCharges: restaurantOrders,
+      laundryCharges: laundryOrders
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1512,6 +1576,44 @@ exports.fixRoomAvailability = async (req, res) => {
     res.json({
       success: true,
       message: `Fixed ${fixedCount} rooms that were incorrectly marked as booked`,
+      fixedCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Fix booking room numbers based on roomRates data
+exports.fixBookingRoomNumbers = async (req, res) => {
+  try {
+    const bookings = await Booking.find({ 
+      deleted: { $ne: true },
+      roomRates: { $exists: true, $ne: [] }
+    });
+    
+    let fixedCount = 0;
+    
+    for (const booking of bookings) {
+      // Get room numbers from roomRates array (most reliable source)
+      const roomNumbersFromRates = booking.roomRates.map(rate => rate.roomNumber).filter(Boolean);
+      
+      if (roomNumbersFromRates.length > 0) {
+        const correctRoomNumber = roomNumbersFromRates.join(',');
+        
+        // Only update if different
+        if (booking.roomNumber !== correctRoomNumber) {
+          console.log(`Fixing booking ${booking.grcNo}: ${booking.roomNumber} -> ${correctRoomNumber}`);
+          
+          booking.roomNumber = correctRoomNumber;
+          await booking.save();
+          fixedCount++;
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Fixed ${fixedCount} booking room numbers`,
       fixedCount
     });
   } catch (error) {

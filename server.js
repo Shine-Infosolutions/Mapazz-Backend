@@ -45,9 +45,8 @@ const app = express();
 // Middleware
 const allowedOrigins = [
   "http://localhost:5173",
-  "http://localhost:5000",
-  "https://mapazz-backend.vercel.app",
-  "https://mapazz-frontend.vercel.app",
+  "http://localhost:4000",
+  "https://mapazz-frontend.vercel.app"
 ];
 
 app.use(
@@ -87,13 +86,8 @@ const connectToMongoDB = async () => {
     }
 
     const connectionOptions = {
-      serverSelectionTimeoutMS: 3000,
-      connectTimeoutMS: 3000,
-      maxPoolSize: 1,
-      minPoolSize: 0,
-      maxIdleTimeMS: 10000,
-      retryWrites: true,
-      w: 'majority'
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000
     };
     
     await mongoose.connect(process.env.MONGO_URI, connectionOptions);
