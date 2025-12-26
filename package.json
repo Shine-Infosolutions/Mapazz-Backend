@@ -1,6 +1,6 @@
 {
   "name": "mapazz-backend",
-  "version": "1.0.4",
+  "version": "1.0.0",
   "description": "Mapazz Hotel Backend API",
   "main": "server.js",
   "scripts": {
