@@ -42,6 +42,9 @@ const path = require("path");
 // Initialize express app
 const app = express();
 
+// Trust proxy for serverless/load balancer environments
+app.set('trust proxy', true);
+
 // Middleware
 const allowedOrigins = [
   "http://localhost:5173",
