@@ -49,7 +49,8 @@ app.set('trust proxy', true);
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:4000",
-  "https://mapazz-frontend.vercel.app"
+  "https://mapazz-frontend.vercel.app",
+  "https://mapazz-backend.vercel.app"
 ];
 
 app.use(
